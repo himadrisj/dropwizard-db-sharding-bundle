@@ -430,6 +430,17 @@ public class LookupDao<T> {
             });
         }
 
+        public<U> LockedContext<T> updateAll(RelationalDao<U> relationalDao, DetachedCriteria criteria, int start, int numRows, Function<U, U> handler) {
+            return apply(parent-> {
+                try {
+                    relationalDao.updateAll(this, criteria, start, numRows, handler);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                return null;
+            });
+        }
+
         public LockedContext<T> filter(Predicate<T> predicate) {
             return filter(predicate, new IllegalArgumentException("Predicate check failed"));
         }

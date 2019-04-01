@@ -27,6 +27,7 @@ import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.criterion.DetachedCriteria;
+import org.hibernate.criterion.Restrictions;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.Assert;
 import org.junit.Before;
@@ -176,6 +177,59 @@ public class LockTest {
         Assert.assertEquals("Changed", lookupDao.get("0").get().getName());
         System.out.println(relationDao.get("0", 1L).get());
         Assert.assertEquals("Hello Changed",relationDao.get("0", 1L).get().getValue());
+    }
+
+    @Test
+    public void testUpdateByCriteria() throws Exception {
+        final String p1Id = "0";
+        SomeLookupObject p1 = SomeLookupObject.builder()
+                .myId(p1Id)
+                .name("Parent 1")
+                .build();
+
+        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+                .my_id(p1.getMyId())
+                .value("Hello1")
+                .build()).get();
+
+        SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+                .my_id(p1.getMyId())
+                .value("Hello2")
+                .build()).get();
+
+        final String p2Id = "1";
+        SomeLookupObject p2 = SomeLookupObject.builder()
+                .myId(p2Id)
+                .name("Parent 2")
+                .build();
+
+        SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
+                .my_id(p2.getMyId())
+                .value("Hello3")
+                .build()).get();
+
+        lookupDao.save(p1);
+        lookupDao.save(p2);
+
+        final DetachedCriteria criteria = DetachedCriteria.forClass(SomeOtherObject.class)
+                .add(Restrictions.eq("my_id", p1.getMyId()));
+
+        final String modifiedValue = "Hello Modified";
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .updateAll(relationDao, criteria, 0, 5, entity -> {
+                    entity.setValue(modifiedValue);
+                    return entity;
+                }).execute();
+
+
+        Assert.assertEquals(modifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(modifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
+        Assert.assertEquals("Parent 1",lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+
+        Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
+        Assert.assertEquals(p2Id,lookupDao.get(p2Id).get().getMyId());
+        Assert.assertEquals("Parent 2",lookupDao.get(p2Id).get().getName());
     }
 
     @Test

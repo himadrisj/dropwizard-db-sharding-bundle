@@ -182,6 +182,35 @@ public class RelationalDao<T> {
         return update(context.getSessionFactory(), dao, id, updater, false);
     }
 
+    <U> boolean updateAll(LookupDao.LockedContext<U> context, DetachedCriteria criteria, int start, int numRows, Function<T, T> updater) {
+        RelationalDaoPriv dao = daos.get(context.getShardId());
+        try {
+            SelectParamPriv selectParam = SelectParamPriv.builder()
+                    .criteria(criteria)
+                    .start(start)
+                    .numRows(numRows)
+                    .build();
+            return Transactions.<List<T>, SelectParamPriv, Boolean>execute(dao.sessionFactory, true, dao::select, selectParam, entityList -> {
+                if (entityList == null || entityList.isEmpty()) {
+                    return false;
+                }
+                for (T oldEntity : entityList) {
+                    if (null == oldEntity) {
+                        return false;
+                    }
+                    T newEntity = updater.apply(oldEntity);
+                    if (null == newEntity) {
+                        return false;
+                    }
+                    dao.update(oldEntity, newEntity);
+                }
+                return true;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating entity with criteria: " + criteria, e);
+        }
+    }
+
     public boolean update(String parentKey, Object id, Function<T, T> updater) {
         int shardId = ShardCalculator.shardId(shardManager, bucketIdExtractor, parentKey);
         RelationalDaoPriv dao = daos.get(shardId);
