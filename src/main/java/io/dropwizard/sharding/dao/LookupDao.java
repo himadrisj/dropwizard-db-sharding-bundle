@@ -430,6 +430,17 @@ public class LookupDao<T> {
             });
         }
 
+        public<U> LockedContext<T> selectAndUpdateOrSave(RelationalDao<U> relationalDao, DetachedCriteria criteria, Function<U, U> handler) {
+            return apply(parent-> {
+                try {
+                    relationalDao.selectAndUpdateOrSave(this, criteria, handler);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                return null;
+            });
+        }
+
         public<U> LockedContext<T> updateAll(RelationalDao<U> relationalDao, DetachedCriteria criteria, int start, int numRows, Function<U, U> handler) {
             return apply(parent-> {
                 try {

@@ -214,17 +214,20 @@ public class LockTest {
         final DetachedCriteria criteria = DetachedCriteria.forClass(SomeOtherObject.class)
                 .add(Restrictions.eq("my_id", p1.getMyId()));
 
-        final String modifiedValue = "Hello Modified";
+        final String childModifiedValue = "Hello Modified";
+        final String parentModifiedValue = "Changed";
         lookupDao.lockAndGetExecutor(p1.getMyId())
                 .updateAll(relationDao, criteria, 0, 5, entity -> {
-                    entity.setValue(modifiedValue);
+                    entity.setValue(childModifiedValue);
                     return entity;
-                }).execute();
+                })
+                .mutate(parent -> parent.setName(parentModifiedValue))
+                .execute();
 
 
-        Assert.assertEquals(modifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
-        Assert.assertEquals(modifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
-        Assert.assertEquals("Parent 1",lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
+        Assert.assertEquals(parentModifiedValue,lookupDao.get(p1Id).get().getName());
         Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
 
         Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
@@ -308,4 +311,64 @@ public class LockTest {
         Assert.assertEquals("Changed", lookupDao.get("0").get().getName());
     }
 
+    @Test
+    public void testSelectAndUpdateOrSave() throws Exception {
+        final String p1Id = "1";
+        SomeLookupObject p1 = SomeLookupObject.builder()
+                .myId(p1Id)
+                .name("Parent 1")
+                .build();
+        lookupDao.save(p1);
+
+        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+                .my_id(p1.getMyId())
+                .value("Hello")
+                .build()).get();
+
+
+        //test existing object
+        final String childModifiedValue = "Hello Modified";
+        final String parentModifiedValue = "Changed";
+        final DetachedCriteria criteria1 = DetachedCriteria.forClass(SomeOtherObject.class)
+                .add(Restrictions.eq("my_id", p1.getMyId()));
+
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .selectAndUpdateOrSave(relationDao, criteria1, child -> {
+                    child.setValue("abcd");
+                    return child;
+                })
+                .mutate(parent -> parent.setName("xyzv"))
+                .selectAndUpdateOrSave(relationDao, criteria1, child -> {
+                    child.setValue(childModifiedValue);
+                    return child;
+                })
+                .mutate(parent -> parent.setName(parentModifiedValue))
+                .execute();
+
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(parentModifiedValue,lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+
+        //test non existing object
+        final String newChildValue = "Newly created child";
+        final String newParentValue = "New parent Value";
+        final DetachedCriteria criteria2 = DetachedCriteria.forClass(SomeOtherObject.class)
+                .add(Restrictions.eq("value", newChildValue));
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .selectAndUpdateOrSave(relationDao, criteria2, child -> {
+                    Assert.assertEquals(null, child);
+                    return SomeOtherObject.builder()
+                            .my_id(p1.getMyId())
+                            .value(newChildValue)
+                            .build();
+                })
+                .mutate(parent -> parent.setName(newParentValue))
+                .execute();
+
+        final SomeOtherObject c2 = relationDao.select(p1.getMyId(), criteria2, 0, 1).stream().findFirst().get();
+        Assert.assertEquals(newChildValue, c2.getValue());
+        Assert.assertNotEquals(c1.getId(), c2.getId());
+        Assert.assertEquals(newParentValue,lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+    }
 }

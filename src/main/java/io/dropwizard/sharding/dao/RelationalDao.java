@@ -190,7 +190,7 @@ public class RelationalDao<T> {
                     .start(start)
                     .numRows(numRows)
                     .build();
-            return Transactions.<List<T>, SelectParamPriv, Boolean>execute(dao.sessionFactory, true, dao::select, selectParam, entityList -> {
+            return Transactions.<List<T>, SelectParamPriv, Boolean>execute(context.getSessionFactory(), true, dao::select, selectParam, entityList -> {
                 if (entityList == null || entityList.isEmpty()) {
                     return false;
                 }
@@ -205,7 +205,7 @@ public class RelationalDao<T> {
                     dao.update(oldEntity, newEntity);
                 }
                 return true;
-            });
+            }, false);
         } catch (Exception e) {
             throw new RuntimeException("Error updating entity with criteria: " + criteria, e);
         }
@@ -265,6 +265,42 @@ public class RelationalDao<T> {
                 dao.update(oldEntity, newEntity);
                 return true;
             });
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating entity with criteria: " + criteria, e);
+        }
+    }
+
+    <U> boolean selectAndUpdateOrSave(LookupDao.LockedContext<U> context, DetachedCriteria criteria, Function<T, T> updater) {
+        RelationalDaoPriv dao = daos.get(context.getShardId());
+        try {
+            SelectParamPriv selectParam = SelectParamPriv.builder()
+                    .criteria(criteria)
+                    .start(0)
+                    .numRows(1)
+                    .build();
+            return Transactions.<List<T>, SelectParamPriv, Boolean>execute(context.getSessionFactory(), true, dao::select, selectParam, (List<T> entityList) -> {
+                if(entityList == null || entityList.isEmpty()) {
+                    T newEntity = updater.apply(null);
+
+                    if (newEntity != null) {
+                        dao.save(newEntity);
+                        return true;
+                    }
+
+                    return false;
+                }
+
+                T oldEntity = entityList.get(0);
+                if(null == oldEntity) {
+                    return false;
+                }
+                T newEntity = updater.apply(oldEntity);
+                if(null == newEntity) {
+                    return false;
+                }
+                dao.update(oldEntity, newEntity);
+                return true;
+            }, false);
         } catch (Exception e) {
             throw new RuntimeException("Error updating entity with criteria: " + criteria, e);
         }
