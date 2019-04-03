@@ -33,6 +33,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -211,15 +212,19 @@ public class LockTest {
         lookupDao.save(p1);
         lookupDao.save(p2);
 
+        //test full update
         final DetachedCriteria criteria = DetachedCriteria.forClass(SomeOtherObject.class)
                 .add(Restrictions.eq("my_id", p1.getMyId()));
 
         final String childModifiedValue = "Hello Modified";
         final String parentModifiedValue = "Changed";
         lookupDao.lockAndGetExecutor(p1.getMyId())
-                .updateAll(relationDao, criteria, 0, 5, entity -> {
-                    entity.setValue(childModifiedValue);
-                    return entity;
+                .updateAll(relationDao, criteria, 0, 5, entities -> {
+                    for (SomeOtherObject entity : entities) {
+                        entity.setValue(childModifiedValue);
+                    }
+
+                    return entities;
                 })
                 .mutate(parent -> parent.setName(parentModifiedValue))
                 .execute();
@@ -228,6 +233,34 @@ public class LockTest {
         Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
         Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
         Assert.assertEquals(parentModifiedValue,lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+
+        Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
+        Assert.assertEquals(p2Id,lookupDao.get(p2Id).get().getMyId());
+        Assert.assertEquals("Parent 2",lookupDao.get(p2Id).get().getName());
+
+        //test partial update
+        final String childModifiedValue2 = "Hello Modified Partial";
+        final String parentModifiedValue2 = "Changed Partial";
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .updateAll(relationDao, criteria, 0, 5, entities -> {
+                    final List<SomeOtherObject> modifiedObjects = new ArrayList<>();
+                    for (SomeOtherObject entity : entities) {
+                        if (entity.getId() == c2.getId()) {
+                            entity.setValue(childModifiedValue2);
+                            modifiedObjects.add(entity);
+                        }
+                    }
+
+                    return modifiedObjects;
+                })
+                .mutate(parent -> parent.setName(parentModifiedValue2))
+                .execute();
+
+
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(childModifiedValue2,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
+        Assert.assertEquals(parentModifiedValue2,lookupDao.get(p1Id).get().getName());
         Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
 
         Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());

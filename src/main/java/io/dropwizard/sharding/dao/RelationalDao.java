@@ -85,6 +85,18 @@ public class RelationalDao<T> {
             currentSession().update(entity);
         }
 
+        void update(List<T> oldEntities, List<T> entities) {
+            for (T oldEntity : oldEntities) {
+                currentSession().evict(oldEntity);
+            }
+
+            if (entities != null) {
+                for (T entity : entities) {
+                    currentSession().update(entity);
+                }
+            }
+        }
+
         List<T> select(SelectParamPriv selectParam) {
             val criteria = selectParam.criteria.getExecutableCriteria(currentSession());
             criteria.setFirstResult(selectParam.start);
@@ -182,7 +194,7 @@ public class RelationalDao<T> {
         return update(context.getSessionFactory(), dao, id, updater, false);
     }
 
-    <U> boolean updateAll(LookupDao.LockedContext<U> context, DetachedCriteria criteria, int start, int numRows, Function<T, T> updater) {
+    <U> boolean updateAll(LookupDao.LockedContext<U> context, DetachedCriteria criteria, int start, int numRows, Function<List<T>, List<T>> updater) {
         RelationalDaoPriv dao = daos.get(context.getShardId());
         try {
             SelectParamPriv selectParam = SelectParamPriv.builder()
@@ -191,19 +203,8 @@ public class RelationalDao<T> {
                     .numRows(numRows)
                     .build();
             return Transactions.<List<T>, SelectParamPriv, Boolean>execute(context.getSessionFactory(), true, dao::select, selectParam, entityList -> {
-                if (entityList == null || entityList.isEmpty()) {
-                    return false;
-                }
-                for (T oldEntity : entityList) {
-                    if (null == oldEntity) {
-                        return false;
-                    }
-                    T newEntity = updater.apply(oldEntity);
-                    if (null == newEntity) {
-                        return false;
-                    }
-                    dao.update(oldEntity, newEntity);
-                }
+                final List<T> newEntityList = updater.apply(entityList);
+                dao.update(entityList, newEntityList);
                 return true;
             }, false);
         } catch (Exception e) {
