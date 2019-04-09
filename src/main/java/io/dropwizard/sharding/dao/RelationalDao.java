@@ -24,11 +24,11 @@ import io.dropwizard.sharding.sharding.ShardManager;
 import io.dropwizard.sharding.utils.ShardCalculator;
 import io.dropwizard.sharding.utils.Transactions;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.reflect.FieldUtils;
-import org.hibernate.Session;
-import org.hibernate.SessionFactory;
+import org.hibernate.*;
 import org.hibernate.criterion.DetachedCriteria;
 import org.hibernate.criterion.Projections;
 import org.hibernate.criterion.Restrictions;
@@ -97,11 +97,24 @@ public class RelationalDao<T> {
             }
         }
 
+        void update(List<T> entities) {
+            if (entities != null) {
+                for (T entity : entities) {
+                    currentSession().update(entity);
+                }
+            }
+        }
+
         List<T> select(SelectParamPriv selectParam) {
             val criteria = selectParam.criteria.getExecutableCriteria(currentSession());
             criteria.setFirstResult(selectParam.start);
             criteria.setMaxResults(selectParam.numRows);
             return list(criteria);
+        }
+
+        ScrollableResults scroll(ScrollParamPriv scrollDetails) {
+            final Criteria criteria = scrollDetails.getCriteria().getExecutableCriteria(currentSession());
+            return criteria.scroll(scrollDetails.getScrollMode());
         }
 
         long count(DetachedCriteria criteria) {
@@ -117,6 +130,15 @@ public class RelationalDao<T> {
         DetachedCriteria criteria;
         int start;
         int numRows;
+    }
+
+    @Builder
+    private static class ScrollParamPriv {
+        @Getter
+        private DetachedCriteria criteria;
+
+        @Getter
+        private ScrollMode scrollMode;
     }
 
     private List<RelationalDaoPriv> daos;
@@ -192,6 +214,24 @@ public class RelationalDao<T> {
     <U> boolean update(LookupDao.LockedContext<U> context, Object id, Function<T, T> updater) {
         RelationalDaoPriv dao = daos.get(context.getShardId());
         return update(context.getSessionFactory(), dao, id, updater, false);
+    }
+
+    <U> boolean scrollAndUpdate(LookupDao.LockedContext<U> context, DetachedCriteria criteria, ScrollMode scrollMode, Function<ScrollableResults,List<T>> updater) {
+        RelationalDaoPriv dao = daos.get(context.getShardId());
+        try {
+            final ScrollParamPriv scrollParam = ScrollParamPriv.builder()
+                    .criteria(criteria)
+                    .scrollMode(scrollMode)
+                    .build();
+
+            return Transactions.<ScrollableResults, ScrollParamPriv, Boolean>execute(context.getSessionFactory(), true, dao::scroll, scrollParam, scrollableResults -> {
+                final List<T> newEntityList = updater.apply(scrollableResults);
+                dao.update(newEntityList);
+                return true;
+            }, false);
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating entity with scroll: " + criteria, e);
+        }
     }
 
     <U> boolean updateAll(LookupDao.LockedContext<U> context, DetachedCriteria criteria, int start, int numRows, Function<List<T>, List<T>> updater) {

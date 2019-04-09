@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import io.dropwizard.sharding.dao.LookupDao;
 import io.dropwizard.sharding.dao.RelationalDao;
 import io.dropwizard.sharding.sharding.ShardManager;
+import org.hibernate.ScrollMode;
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -260,6 +261,100 @@ public class LockTest {
 
         Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
         Assert.assertEquals(childModifiedValue2,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
+        Assert.assertEquals(parentModifiedValue2,lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+
+        Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
+        Assert.assertEquals(p2Id,lookupDao.get(p2Id).get().getMyId());
+        Assert.assertEquals("Parent 2",lookupDao.get(p2Id).get().getName());
+    }
+
+    @Test
+    public void testScrollAndUpdate() throws Exception {
+        final String p1Id = "0";
+        SomeLookupObject p1 = SomeLookupObject.builder()
+                .myId(p1Id)
+                .name("Parent 1")
+                .build();
+
+        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+                .my_id(p1.getMyId())
+                .value("Hello1")
+                .build()).get();
+
+        SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+                .my_id(p1.getMyId())
+                .value("Hello2")
+                .build()).get();
+
+        final String p2Id = "1";
+        SomeLookupObject p2 = SomeLookupObject.builder()
+                .myId(p2Id)
+                .name("Parent 2")
+                .build();
+
+        SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
+                .my_id(p2.getMyId())
+                .value("Hello3")
+                .build()).get();
+
+        lookupDao.save(p1);
+        lookupDao.save(p2);
+
+        //test full update
+        final DetachedCriteria criteria = DetachedCriteria.forClass(SomeOtherObject.class)
+                .add(Restrictions.eq("my_id", p1.getMyId()));
+
+        final String childModifiedValue = "Hello Modified";
+        final String parentModifiedValue = "Parent Changed";
+
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .scrollAndUpdate(relationDao, criteria,ScrollMode.FORWARD_ONLY, scrollableResults -> {
+                    final List<SomeOtherObject> modified = new ArrayList<>();
+                    while(scrollableResults.next()) {
+                        final SomeOtherObject entity = (SomeOtherObject) scrollableResults.get(0);
+                        entity.setValue(childModifiedValue);
+                        modified.add(entity);
+                    }
+                    return modified;
+                })
+                .mutate(parent -> parent.setName(parentModifiedValue))
+                .execute();
+
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
+        Assert.assertEquals(parentModifiedValue,lookupDao.get(p1Id).get().getName());
+        Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
+
+        Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
+        Assert.assertEquals(p2Id,lookupDao.get(p2Id).get().getMyId());
+        Assert.assertEquals("Parent 2",lookupDao.get(p2Id).get().getName());
+
+
+
+        //test partial update
+        final String childModifiedValue2 = "Hello Modified Partial";
+        final String parentModifiedValue2 = "Parent Changed Partial";
+        lookupDao.lockAndGetExecutor(p1.getMyId())
+                .scrollAndUpdate(relationDao, criteria, ScrollMode.FORWARD_ONLY, scrollableResults -> {
+                    final List<SomeOtherObject> modified = new ArrayList<>();
+
+                    while(scrollableResults.next()) {
+                        final SomeOtherObject entity = (SomeOtherObject) scrollableResults.get(0);
+
+                        if (entity.getId() == c1.getId()) {
+                            entity.setValue(childModifiedValue2);
+                            modified.add(entity);
+                        }
+
+                    }
+                    return modified;
+                })
+                .mutate(parent -> parent.setName(parentModifiedValue2))
+                .execute();
+
+        Assert.assertEquals(childModifiedValue2,relationDao.get(p1.getMyId(), c1.getId()).get().getValue());
+        Assert.assertEquals(childModifiedValue,relationDao.get(p1.getMyId(), c2.getId()).get().getValue());
         Assert.assertEquals(parentModifiedValue2,lookupDao.get(p1Id).get().getName());
         Assert.assertEquals(p1Id,lookupDao.get(p1Id).get().getMyId());
 
