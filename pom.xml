@@ -6,7 +6,7 @@
 
     <groupId>io.dropwizard.sharding</groupId>
     <artifactId>db-sharding-bundle</artifactId>
-    <version>1.2.2-6-HIMADRI-SNAPSHOT</version>
+    <version>1.2.2-4</version>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <dropwizard.version>1.2.2</dropwizard.version>
@@ -21,13 +21,10 @@
 
     <distributionManagement>
         <repository>
-            <id>phonepe-releases</id>
-            <url>http://artifactory.phonepe.com/content/repositories/releases</url>
+            <id>clojars</id>
+            <name>Clojars repository</name>
+            <url>https://clojars.org/repo</url>
         </repository>
-        <snapshotRepository>
-            <id>phonepe-snapshots</id>
-            <url>http://artifactory.phonepe.com/content/repositories/snapshots</url>
-        </snapshotRepository>
     </distributionManagement>
 
     <scm>
