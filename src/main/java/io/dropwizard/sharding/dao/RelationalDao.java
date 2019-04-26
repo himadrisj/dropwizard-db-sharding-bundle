@@ -217,7 +217,8 @@ public class RelationalDao<T> {
     }
 
     <U> boolean scrollAndUpdate(LookupDao.LockedContext<U> context, DetachedCriteria criteria, ScrollMode scrollMode, Function<ScrollableResults,List<T>> updater) {
-        RelationalDaoPriv dao = daos.get(context.getShardId());
+        final RelationalDaoPriv dao = daos.get(context.getShardId());
+
         try {
             final ScrollParamPriv scrollParam = ScrollParamPriv.builder()
                     .criteria(criteria)
@@ -235,9 +236,10 @@ public class RelationalDao<T> {
     }
 
     <U> boolean updateAll(LookupDao.LockedContext<U> context, DetachedCriteria criteria, int start, int numRows, Function<List<T>, List<T>> updater) {
-        RelationalDaoPriv dao = daos.get(context.getShardId());
+        final RelationalDaoPriv dao = daos.get(context.getShardId());
+
         try {
-            SelectParamPriv selectParam = SelectParamPriv.builder()
+            final SelectParamPriv selectParam = SelectParamPriv.builder()
                     .criteria(criteria)
                     .start(start)
                     .numRows(numRows)
@@ -312,16 +314,17 @@ public class RelationalDao<T> {
     }
 
     <U> boolean selectAndUpdateOrSave(LookupDao.LockedContext<U> context, DetachedCriteria criteria, Function<T, T> updater) {
-        RelationalDaoPriv dao = daos.get(context.getShardId());
+        final RelationalDaoPriv dao = daos.get(context.getShardId());
+
         try {
-            SelectParamPriv selectParam = SelectParamPriv.builder()
+            final SelectParamPriv selectParam = SelectParamPriv.builder()
                     .criteria(criteria)
                     .start(0)
                     .numRows(1)
                     .build();
             return Transactions.<List<T>, SelectParamPriv, Boolean>execute(context.getSessionFactory(), true, dao::select, selectParam, (List<T> entityList) -> {
                 if(entityList == null || entityList.isEmpty()) {
-                    T newEntity = updater.apply(null);
+                    final T newEntity = updater.apply(null);
 
                     if (newEntity != null) {
                         dao.save(newEntity);
@@ -331,11 +334,11 @@ public class RelationalDao<T> {
                     return false;
                 }
 
-                T oldEntity = entityList.get(0);
+                final T oldEntity = entityList.get(0);
                 if(null == oldEntity) {
                     return false;
                 }
-                T newEntity = updater.apply(oldEntity);
+                final T newEntity = updater.apply(oldEntity);
                 if(null == newEntity) {
                     return false;
                 }

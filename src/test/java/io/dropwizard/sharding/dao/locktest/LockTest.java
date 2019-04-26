@@ -258,28 +258,28 @@ public class LockTest {
     @Test
     public void testUpdateByCriteria() throws Exception {
         final String p1Id = "0";
-        SomeLookupObject p1 = SomeLookupObject.builder()
+        final SomeLookupObject p1 = SomeLookupObject.builder()
                 .myId(p1Id)
                 .name("Parent 1")
                 .build();
 
-        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
                 .my_id(p1.getMyId())
                 .value("Hello1")
                 .build()).get();
 
-        SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
                 .my_id(p1.getMyId())
                 .value("Hello2")
                 .build()).get();
 
         final String p2Id = "1";
-        SomeLookupObject p2 = SomeLookupObject.builder()
+        final SomeLookupObject p2 = SomeLookupObject.builder()
                 .myId(p2Id)
                 .name("Parent 2")
                 .build();
 
-        SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
                 .my_id(p2.getMyId())
                 .value("Hello3")
                 .build()).get();
@@ -346,13 +346,13 @@ public class LockTest {
     @Test
     public void testSelectAndUpdateOrSave() throws Exception {
         final String p1Id = "1";
-        SomeLookupObject p1 = SomeLookupObject.builder()
+        final SomeLookupObject p1 = SomeLookupObject.builder()
                 .myId(p1Id)
                 .name("Parent 1")
                 .build();
         lookupDao.save(p1);
 
-        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
                 .my_id(p1.getMyId())
                 .value("Hello")
                 .build()).get();
@@ -407,28 +407,28 @@ public class LockTest {
     @Test
     public void testScrollAndUpdate() throws Exception {
         final String p1Id = "0";
-        SomeLookupObject p1 = SomeLookupObject.builder()
+        final SomeLookupObject p1 = SomeLookupObject.builder()
                 .myId(p1Id)
                 .name("Parent 1")
                 .build();
 
-        SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c1 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
                 .my_id(p1.getMyId())
                 .value("Hello1")
                 .build()).get();
 
-        SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c2 = relationDao.save(p1.getMyId(), SomeOtherObject.builder()
                 .my_id(p1.getMyId())
                 .value("Hello2")
                 .build()).get();
 
         final String p2Id = "1";
-        SomeLookupObject p2 = SomeLookupObject.builder()
+        final SomeLookupObject p2 = SomeLookupObject.builder()
                 .myId(p2Id)
                 .name("Parent 2")
                 .build();
 
-        SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
+        final SomeOtherObject c3 = relationDao.save(p2.getMyId(), SomeOtherObject.builder()
                 .my_id(p2.getMyId())
                 .value("Hello3")
                 .build()).get();
@@ -501,7 +501,7 @@ public class LockTest {
         //test multiple update
         final String childModifiedValue3 = "Hello Modified Multiple";
         final String parentModifiedValue3 = "Parent Changed Multiple";
-        final String childModifiedValue4 = "Really tired of writing new strings";
+        final String childModifiedValue4 = "Tired of writing new strings";
         lookupDao.lockAndGetExecutor(p1.getMyId())
                 .scrollAndUpdate(relationDao, criteria, ScrollMode.FORWARD_ONLY, scrollableResults -> {
                     final List<SomeOtherObject> modified = new ArrayList<>();
@@ -538,6 +538,5 @@ public class LockTest {
         Assert.assertEquals("Hello3",relationDao.get(p2.getMyId(), c3.getId()).get().getValue());
         Assert.assertEquals(p2Id,lookupDao.get(p2Id).get().getMyId());
         Assert.assertEquals("Parent 2",lookupDao.get(p2Id).get().getName());
-
     }
 }
